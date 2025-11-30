@@ -116,6 +116,36 @@ const followersList = document.getElementById('followersList');
 
 let isSignUp = true;
 
+// Function to update follow button
+async function updateFollowButton(user) {
+    if(user){
+        const userFollowRef = ref(db, `followers/users/${user.uid}`);
+        const snapshot = await get(userFollowRef);
+        if(snapshot.exists() && snapshot.val()===true){
+            followBtn.innerText="Following";
+            followBtn.disabled=true;
+            followBtn.style.backgroundColor="gray";
+        } else {
+            followBtn.innerText="Follow";
+            followBtn.disabled=false;
+            followBtn.style.backgroundColor="#4a6cff";
+
+            followBtn.onclick = async ()=>{
+                await set(userFollowRef,true);
+                await runTransaction(ref(db, 'followers/count'), current => (current||0)+1);
+                followBtn.innerText="Following";
+                followBtn.disabled=true;
+                followBtn.style.backgroundColor="gray";
+            };
+        }
+    } else {
+        followBtn.innerText="Create an account to follow";
+        followBtn.disabled=true;
+        followBtn.style.backgroundColor="#4a6cff";
+        followBtn.onclick = null;
+    }
+}
+
 // Auth modals
 signupBtn.onclick = ()=>{
     isSignUp = true;
@@ -154,6 +184,9 @@ googleBtn.onclick = async ()=>{
         }
 
         modal.style.display = "none";
+        // Immediately update follow button after login/signup
+        updateFollowButton(user);
+
     }catch(err){
         console.error(err);
         errorMsg.innerText = err.message;
@@ -173,42 +206,14 @@ onAuthStateChanged(auth, async (user)=>{
         signupBtn.style.display="inline-block";
         loginBtn.style.display="inline-block";
     }
+
+    // Update follow button based on auth state
+    updateFollowButton(user);
 });
 
 // Live followers count
-const followersCountRef = ref(db, 'followers/count');
-onValue(followersCountRef, snapshot=>{
+onValue(ref(db, 'followers/count'), snapshot=>{
     followNum.innerText = snapshot.val()||0;
-});
-
-// Follow button
-onAuthStateChanged(auth, async (user)=>{
-    if(user){
-        const userFollowRef = ref(db, `followers/users/${user.uid}`);
-        const snapshot = await get(userFollowRef);
-        if(snapshot.exists() && snapshot.val()===true){
-            followBtn.innerText="Following";
-            followBtn.disabled=true;
-            followBtn.style.backgroundColor="gray";
-        } else {
-            followBtn.innerText="Follow";
-            followBtn.disabled=false;
-            followBtn.style.backgroundColor="#4a6cff";
-        }
-
-        followBtn.onclick = async ()=>{
-            await set(userFollowRef,true);
-            await runTransaction(followersCountRef, current => (current||0)+1);
-            followBtn.innerText="Following";
-            followBtn.disabled=true;
-            followBtn.style.backgroundColor="gray";
-        };
-    } else {
-        followBtn.innerText="Create an account to follow";
-        followBtn.disabled=true;
-        followBtn.style.backgroundColor="#4a6cff";
-        followBtn.onclick = null;
-    }
 });
 
 // Followers modal
