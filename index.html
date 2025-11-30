@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mr. Franco Page</title>
+<style>
+body { background:#fff; font-family: Arial, sans-serif; margin:0; padding:0; text-align:center; }
+.topbar { width:100%; height:50px; background-color:#111; position:fixed; top:0; left:0; z-index:1000; display:flex; justify-content:flex-end; align-items:center; }
+.topbar button { margin-left:10px; padding:8px 15px; font-size:14px; border:none; border-radius:8px; background-color:#4a6cff; color:white; cursor:pointer; transition:0.2s; }
+.topbar button:hover { background-color:#2f4ff7; }
+.username-display { color:white; margin-left:10px; font-weight:bold; }
+.content { max-width:600px; margin:70px auto 0; padding:0 20px; }
+.pfp { width:230px; height:230px; border-radius:50%; object-fit:cover; margin-top:0; }
+.name { font-size:30px; font-weight:bold; margin-top:15px; }
+.followers { font-size:18px; font-weight:bold; margin-top:10px; cursor:pointer; color:#333; }
+.find-me { margin-top:15px; font-size:16px; }
+.find-me a { display:block; margin-top:5px; color:#4a6cff; text-decoration:none; font-weight:bold; }
+.find-me a:hover { text-decoration:underline; }
+.bio { margin:25px auto; font-size:16px; color:#444; line-height:1.6; }
+button.follow-btn { padding:15px 40px; font-size:18px; border:none; border-radius:12px; background:#4a6cff; color:white; cursor:pointer; margin-top:30px; transition:.2s; }
+button.follow-btn:hover:enabled { background:#2f4ff7; }
+.modal { display:none; position:fixed; z-index:2000; left:0; top:0; width:100%; height:100%; overflow:auto; background-color: rgba(0,0,0,0.6); }
+.modal-content { background:white; margin:100px auto; padding:30px; border-radius:12px; width:90%; max-width:400px; text-align:center; position:relative; }
+.modal h1 { font-size:20px; margin-bottom:15px; }
+.modal input[type="text"] { width:80%; padding:10px; margin-bottom:15px; border-radius:8px; border:1px solid #ccc; }
+.modal .error { color:red; font-size:14px; margin-top:10px; }
+.close-btn { position:absolute; top:10px; right:15px; font-size:20px; cursor:pointer; }
+.google-btn { background-color:#4285F4; color:white; border:none; padding:10px 20px; border-radius:8px; cursor:pointer; font-weight:bold; }
+.google-btn:hover { background-color:#3367D6; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+    <span class="username-display" id="usernameDisplay"></span>
+    <button id="signupBtn">Sign Up</button>
+    <button id="loginBtn">Log In</button>
+</div>
+
+<div class="content">
+    <img class="pfp" src="https://uploads.onecompiler.io/436y42uk8/4466dngpw/Screenshot%202025-11-29%20220427.png">
+    <div class="name">Mr. Franco</div>
+    <div class="followers" id="followersText">
+        Followers: <span id="followNum">0</span>
+    </div>
+    <div class="find-me">
+        Find me on:
+        <a href="https://www.instagram.com/official_mrfranco/" target="_blank">@official_mrfranco</a>
+    </div>
+    <div class="bio">
+        I am a young Christian Producer with a goal to bring people to christ and relate with my future music.
+        Please support by following and showing you are here with me, I believe we can do this together. 💪
+    </div>
+    <button class="follow-btn" id="followBtn">Create an account to follow</button>
+</div>
+
+<!-- Login/Signup Modal -->
+<div id="authModal" class="modal">
+    <div class="modal-content">
+        <span class="close-btn" id="closeModal">&times;</span>
+        <h1 id="modalTitle">Make an account to follow me and receive updates!</h1>
+        <input type="text" id="nameInput" placeholder="Your Name">
+        <button class="google-btn" id="googleAuthBtn">Sign in with Google</button>
+        <div class="error" id="errorMsg"></div>
+    </div>
+</div>
+
+<!-- Followers Modal -->
+<div id="followersModal" class="modal">
+    <div class="modal-content">
+        <span class="close-btn" id="closeFollowers">&times;</span>
+        <h1>Followers</h1>
+        <div id="followersList" style="text-align:left; max-height:300px; overflow-y:auto; margin-top:15px;"></div>
+    </div>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-app.js";
+import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-auth.js";
+import { getDatabase, ref, set, get, query, orderByChild, equalTo } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-database.js";
+
+// Firebase config (YOUR PROJECT)
+const firebaseConfig = {
+    apiKey: "AIzaSyAXXlMEkDG47bX_KrjsPOsklr53BA5ij5s",
+    authDomain: "mrfrancopage.firebaseapp.com",
+    projectId: "mrfrancopage",
+    storageBucket: "mrfrancopage.firebasestorage.app",
+    messagingSenderId: "321836169308",
+    appId: "1:321836169308:web:6643280a4505d8c5174e99",
+    measurementId: "G-7NWCLXFYQE"
+};
+
+// Init
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getDatabase(app);
+
+// Elements
+const signupBtn = document.getElementById('signupBtn');
+const loginBtn = document.getElementById('loginBtn');
+const modal = document.getElementById('authModal');
+const closeModal = document.getElementById('closeModal');
+const modalTitle = document.getElementById('modalTitle');
+const googleBtn = document.getElementById('googleAuthBtn');
+const nameInput = document.getElementById('nameInput');
+const errorMsg = document.getElementById('errorMsg');
+const usernameDisplay = document.getElementById('usernameDisplay');
+const followBtn = document.getElementById('followBtn');
+
+let isSignUp = true;
+let count = 0;
+
+// Open modals
+signupBtn.onclick = () => {
+    isSignUp = true;
+    modalTitle.innerText = "Make an account to follow me and receive updates!";
+    nameInput.style.display = "block";
+    googleBtn.innerText = "Sign up with Google";
+    errorMsg.innerText = "";
+    modal.style.display = "block";
+};
+loginBtn.onclick = () => {
+    isSignUp = false;
+    modalTitle.innerText = "Log in to your account";
+    nameInput.style.display = "none";
+    googleBtn.innerText = "Log in with Google";
+    errorMsg.innerText = "";
+    modal.style.display = "block";
+};
+closeModal.onclick = () => modal.style.display = "none";
+
+// Google Auth
+googleBtn.onclick = async () => {
+    const provider = new GoogleAuthProvider();
+    try{
+        const result = await signInWithPopup(auth, provider);
+        const user = result.user;
+
+        if(isSignUp){
+            const name = nameInput.value.trim();
+            if(!name){ errorMsg.innerText = "Please enter your name"; return; }
+
+            const userRef = query(ref(db, 'users'), orderByChild('email'), equalTo(user.email));
+            const snapshot = await get(userRef);
+            if(snapshot.exists()){ errorMsg.innerText = "Account Already Exists"; return; }
+
+            await set(ref(db, 'users/' + user.uid), {
+                name: name,
+                email: user.email
+            });
+        }
+
+        modal.style.display = "none";
+        usernameDisplay.innerText = user.displayName || nameInput.value;
+        signupBtn.style.display = "none";
+        loginBtn.style.display = "none";
+        followBtn.innerText = "Follow";
+        followBtn.disabled = false;
+
+    } catch(error){
+        console.error(error);
+        errorMsg.innerText = error.message;
+    }
+};
+
+// Auth state changes
+onAuthStateChanged(auth, async (user)=>{
+    if(user){
+        const snapshot = await get(ref(db, 'users/' + user.uid));
+        const displayName = snapshot.exists()? snapshot.val().name : user.displayName;
+        usernameDisplay.innerText = displayName;
+        signupBtn.style.display = "none";
+        loginBtn.style.display = "none";
+        followBtn.innerText = "Follow";
+        followBtn.disabled = false;
+    } else{
+        usernameDisplay.innerText = "";
+        signupBtn.style.display = "inline-block";
+        loginBtn.style.display = "inline-block";
+        followBtn.innerText = "Create an account to follow";
+        followBtn.disabled = true;
+    }
+});
+
+// Follow button
+followBtn.onclick = () => {
+    if(auth.currentUser){
+        count++;
+        document.getElementById("followNum").innerText = count;
+    } else {
+        modal.style.display = "block";
+    }
+};
+
+// Followers modal
+const followersText = document.getElementById('followersText');
+const followersModal = document.getElementById('followersModal');
+const closeFollowers = document.getElementById('closeFollowers');
+const followersList = document.getElementById('followersList');
+
+followersText.onclick = async ()=>{
+    followersList.innerHTML = '';
+    followersModal.style.display = "block";
+    const snapshot = await get(ref(db, 'users'));
+    if(snapshot.exists()){
+        const users = snapshot.val();
+        for(const uid in users){
+            const user = users[uid];
+            const div = document.createElement('div');
+            div.innerText = user.name;
+            div.style.padding = "5px 0";
+            followersList.appendChild(div);
+        }
+    } else followersList.innerHTML = "<i>No followers yet</i>";
+};
+closeFollowers.onclick = () => followersModal.style.display = "none";
+window.onclick = (event)=>{
+    if(event.target==followersModal) followersModal.style.display="none";
+    if(event.target==modal) modal.style.display="none";
+};
+</script>
+</body>
+</html>
